@@ -1,25 +1,118 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "**PERSONAL MOVEMENT DATA**"
+author: "Oleg Tsarev"
+date: "12/06/2015"
+output: html_document
 ---
 
+## **Synopsis**
+In this report we aim to explore large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up.  
+The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.  
+  
+## **Loading the Raw data**
+The dataset is stored in a comma-separated-value (CSV) file and there are a total of 17,568 observations in this dataset.  
+```{r load,cache=F}
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+              ,"./repdata%2Fdata%2Factivity.zip",method = "wget")
+unzip(zipfile = "./repdata%2Fdata%2Factivity.zip",overwrite = T,exdir = "./")
+amd <- read.csv("./activity.csv",T,",",na.strings = "NA")
+```
+After reading we check the first rows in this dataset.
+```{r}
+dim(amd)
+head(amd)
+```
+So loading was successful.  
+Let's add new time column.  
+```{r}
+amd$time = strptime(x = paste(amd$interval %/% 100,amd$interval - amd$interval %/% 100 * 100),format = "%H %M")
+```
 
-## Loading and preprocessing the data
+## **Q1: What is mean total number of steps taken per day?**
+Firstly, let's aggregate steps quantity by date.
+```{r 1.1}
+sum_steps <- na.omit(aggregate(amd$steps,by=list(amd$date),FUN=sum,na.rm=T))
+mean_steps <- round(x = mean(sum_steps$x),digits = 0)
+median_steps <- median(sum_steps$x)
+```
+Secondly, let's make a histogram to show the total number of steps taken per day.
+```{r 1.2}
+hist(sum_steps$x,breaks=12,xlab="Total number of steps per day",col="grey",main="Histogram of total number of steps per day")
+abline(v = mean_steps,col="blue")
+abline(v = median_steps,col="green")
+legend(x="topright",legend=c("mean","median"),col=c("blue","green"),lwd=3,bty="n")
+```
+  
+So, as you can see above **mean equals `r mean_steps`, median equals `r median_steps`**.  
 
+## **Q2: What is the average daily activity pattern?**
+Firstly, let's aggregate steps quantity by date.
+```{r 2.1}
+day_pattern <- na.omit(aggregate(amd$steps,by=list(amd$interval,as.numeric(amd$time)),FUN=mean,na.rm=T))
+```
+Secondly, let's make a plot that shows total number of steps taken per day.
+```{r 2.2}
+plot(day_pattern$Group.1,day_pattern$x,main="Average daily activity pattern",type="l",
+     xlab="time",ylab="average number of steps",xaxt='n')
+axis(1, at=0:6*100*4, labels=paste(0:6*4,"00",sep=":"))
+intens_interval <- day_pattern[day_pattern$x==max(day_pattern$x),"Group.1"]
+intens_interval <- paste(intens_interval %/% 100,intens_interval - intens_interval %/% 100 * 100,sep=":")
+```
+**The most intensive 5 minutes interval starts about `r intens_interval`.**  
 
+## **Imputing missing values**
+Now let's see how many empty values (NA's) in the column "steps".
+```{r 3.1}
+summary(amd$steps)
+```
+Let's replace them on the means that calculated as a mean(mean by date,mean by interval).
+```{r 3.2,cache=T}
+na_vector <- amd[amd$steps=="NA",]
+adj_amd <- amd
+for(i in 1:nrow(amd)){
+    if(is.na(amd[i,"steps"])){
+        adj_amd[i,"steps"] <- mean(c(mean(amd[amd$date==amd[i,"date"],"steps"],na.rm=T),
+                                     mean(amd[amd$interval==amd[i,"interval"],"steps"],na.rm=T)),na.rm=T)
+    }
+}
+summary(adj_amd$steps)
+```
+Now let's see histogram of adjusted number of steps.  
+```{r 3.3}
+sum_steps <- na.omit(aggregate(adj_amd$steps,by=list(adj_amd$date),FUN=sum,na.rm=T))
+mean_steps <- as.integer(mean(sum_steps$x))
+median_steps <- as.integer(median(sum_steps$x))
+hist(sum_steps$x,breaks=12,xlab="Total number of steps per day",col="grey",main="Histogram of total number of steps per day")
+abline(v = mean_steps,col="blue")
+abline(v = median_steps,col="green")
+legend(x="topright",legend=c("mean","median"),col=c("blue","green"),lwd=3,bty="n")
+amd_sum <- as.integer(sum(amd$steps,na.rm = T))
+adj_amd_sum <- as.integer(sum(adj_amd$steps))
+```
+  
+So, as you can see above **mean = median = `r mean_steps`**.  
+Due to the imputation total number of steps was increased from `r amd_sum` to `r adj_amd_sum`.  
 
-## What is mean total number of steps taken per day?
+## **Q3: Are there differences in activity patterns between weekdays and weekends?**
+Let's make some data processing in order to answer on this question.
+```{r 4.1}
+library(ggplot2)
+adj_amd$wday <- ifelse(weekdays(abbreviate = F,strptime(adj_amd$date,"%Y-%m-%d")) %in% c("Saturday","Sunday"),"weekend","weekday")
+wday_adj_amd <- na.omit(aggregate(adj_amd$steps,by=list(adj_amd$interval,adj_amd$wday),FUN=mean,na.rm=T))
+names(wday_adj_amd) <- c("interval","wday","steps")
+```
+And let's make a plot with activity patterns for weekdays and weekends.
+``` {r 4.2}
+q <- qplot(interval,steps,data = wday_adj_amd,facets = wday ~ .,geom = "line",main="Activity patterns")
+q + scale_x_continuous(breaks=0:6*100*4, labels=paste(0:6*4,"00",sep=":"))
+```
 
+Based on the plot above we can say that during weekdays morning activity is higher than in weekend, it can be explained by trip to work.
+But basically daily activity during weekend is higher than during weekdays.
+  
+  
 
-
-## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+  
+  
+  
+ .
